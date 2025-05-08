@@ -2,7 +2,6 @@ from sklearn.metrics import accuracy_score, classification_report
 #train classifier
 import pickle
 #classifier is random forest classifier
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 import numpy as np
@@ -10,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
+from newRandomForest import RandomForest
 
 data_dict = pickle.load(open('/kaggle/input/picketdataset/data.pickle','rb'))
 # print(data_dict)
@@ -28,7 +28,7 @@ labels = np.asarray(data_dict['labels'])
 
 x_train, x_test, y_train, y_test = train_test_split(data,labels, test_size=0.2,shuffle=True, stratify=labels)
 
-model = RandomForestClassifier()
+model = RandomForest()
 
 model.fit(x_train,y_train)
 

@@ -1,10 +1,10 @@
 import pickle
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
+from newRandomForest import RandomForest
 
 # Đọc dữ liệu từ file pickle
 with open('/kaggle/working/data.pickle', 'rb') as f:
@@ -27,16 +27,18 @@ x_train, x_test, y_train, y_test = train_test_split(data, labels, test_size=0.2,
 
 # Thiết lập tham số cho Grid Search
 param_grid = {
-    'n_estimators': [100, 200, 300],
-    'max_features': [ 'sqrt', 'log2'],
-    'max_depth': [10, 20, 30, None],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1, 2, 4],
-    'bootstrap': [True, False]
+    'n_trees': [10, 20],  
+    'n_features': ['sqrt', 'log2', None],
+    'max_depth': [5, 10, None],      
+    'min_samples_split': [2, 5],
+    'min_samples_leaf': [1, 2],    
+    'bootstrap': [True, False],      
+    'random_state': [1234]           
 }
+
 print(" Thực hiện Grid Search")
 # Thực hiện Grid Search
-grid_search = GridSearchCV(estimator=RandomForestClassifier(), param_grid=param_grid, cv=5, n_jobs=-1, verbose=2)
+grid_search = GridSearchCV(estimator=RandomForest(), param_grid=param_grid, cv=5, n_jobs=-1, verbose=2)
 grid_search.fit(x_train, y_train)
 print(" In ra bộ tham số tốt nhất")
 # In ra bộ tham số tốt nhất
@@ -44,7 +46,7 @@ print("Best parameters found: ", grid_search.best_params_)
 
 # Sử dụng các tham số tốt nhất để huấn luyện lại mô hình
 print("Sử dụng các tham số tốt nhất để huấn luyện lại mô hình")
-best_model = RandomForestClassifier(**grid_search.best_params_)
+best_model = RandomForest(**grid_search.best_params_)
 best_model.fit(x_train, y_train)
 y_pred = best_model.predict(x_test)
 print("HERE 1")
