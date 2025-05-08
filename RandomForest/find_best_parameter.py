@@ -1,88 +1,152 @@
 import pickle
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import itertools # Để tạo các tổ hợp tham số
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Đọc dữ liệu từ file pickle
-with open('/kaggle/working/data.pickle', 'rb') as f:
-    data_dict = pickle.load(f)
+# Bước 1: Import các lớp và hàm cần thiết từ module tự tạo
+from custom_ml_algorithms import (
+    CustomRandomForestClassifier,
+    CustomDecisionTreeClassifier, # Cần thiết cho pickle
+    Node,                       # Cần thiết cho pickle
+    custom_train_test_split,
+    custom_accuracy_score,
+    custom_classification_report_simplified,
+    custom_confusion_matrix # Tùy chọn, nếu có
+)
 
-# Kiểm tra và xử lý dữ liệu
-data = data_dict['data']
-labels = data_dict['labels']
-for i, sample in enumerate(data):
-    if len(sample) != 42:
-        print(f"Sample {i + 1} has an invalid size of {len(sample)}")
-        print(labels[i])
+# Đường dẫn tệp dữ liệu
+# DATA_PICKLE_PATH = '/kaggle/working/data.pickle' # Đường dẫn cũ
+DATA_PICKLE_PATH = './data.pickle' # Sử dụng đường dẫn tương đối
 
-# Chuyển đổi dữ liệu thành numpy array
-data = np.asarray(data)
-labels = np.asarray(labels)
+print(f"Đang tải dữ liệu từ '{DATA_PICKLE_PATH}' cho tìm kiếm tham số...")
+try:
+    with open(DATA_PICKLE_PATH, 'rb') as f:
+        data_dict = pickle.load(f)
+except FileNotFoundError:
+    print(f"Lỗi: Không tìm thấy tệp dữ liệu '{DATA_PICKLE_PATH}'.")
+    exit()
 
-# Chia dữ liệu thành tập huấn luyện và tập kiểm tra
-x_train, x_test, y_train, y_test = train_test_split(data, labels, test_size=0.2, shuffle=True, stratify=labels)
+data_list = data_dict['data']
+labels_list = data_dict['labels']
 
-# Thiết lập tham số cho Grid Search
+# Xử lý dữ liệu đầu vào (tương tự như các tệp khác)
+processed_data = []
+processed_labels = []
+expected_feature_length = 42
+for i, sample in enumerate(data_list):
+    sample_arr = np.array(sample)
+    if len(sample_arr) == expected_feature_length:
+        processed_data.append(sample_arr)
+        processed_labels.append(labels_list[i])
+    # Bỏ qua các mẫu không đúng kích thước trong lần này để đơn giản
+    # Trong thực tế, bạn nên có một bước tiền xử lý dữ liệu nhất quán
+    
+if not processed_data:
+    print("Lỗi (find_best_parameter): Không có dữ liệu hợp lệ. Kết thúc.")
+    exit()
+
+data = np.asarray(processed_data)
+labels = np.asarray(processed_labels)
+print(f"Tổng số mẫu hợp lệ: {len(data)}")
+
+# Chia dữ liệu thành tập huấn luyện và tập kiểm tra (hoặc huấn luyện và validation)
+# Để tìm tham số, thường dùng tập validation riêng, hoặc cross-validation thủ công.
+# Để đơn giản, chúng ta sẽ chia thành train/test, và dùng test set để chọn tham số tốt nhất.
+# (Lưu ý: Đây không phải là thực hành tốt nhất, nên có tập validation riêng biệt)
+x_train_full, x_test_final, y_train_full, y_test_final = custom_train_test_split(
+    data, labels, test_size=0.2, shuffle=True, random_state=42
+)
+# Tiếp tục chia x_train_full thành x_train_cv và x_val_cv để cross-validation nếu muốn
+# Hiện tại, chúng ta sẽ dùng x_train_full để huấn luyện và x_test_final để đánh giá chọn tham số
+print(f"Kích thước tập huấn luyện (find_param): {x_train_full.shape}")
+print(f"Kích thước tập kiểm tra/validation (find_param): {x_test_final.shape}")
+
+
+# Thiết lập lưới tham số (giữ nguyên từ code gốc của bạn, nhưng bỏ 'bootstrap' và 'max_features' nếu
+# CustomRandomForestClassifier không hỗ trợ chúng theo cách giống sklearn)
+# CustomRandomForestClassifier của chúng ta có n_features_subsample (tương tự max_features='sqrt' hoặc 'log2' nếu là số nguyên)
+# và min_samples_split, max_depth, n_estimators.
 param_grid = {
-    'n_estimators': [100, 200, 300],
-    'max_features': [ 'sqrt', 'log2'],
-    'max_depth': [10, 20, 30, None],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1, 2, 4],
-    'bootstrap': [True, False]
+    'n_estimators': [50, 100], # Giảm số lượng để chạy nhanh hơn khi thử nghiệm
+    'max_depth': [5, 10, None], # None nghĩa là không giới hạn độ sâu
+    'min_samples_split': [2, 5],
+    # 'n_features_subsample': [int(np.sqrt(x_train_full.shape[1])), x_train_full.shape[1] // 3 ] # Ví dụ
+    # Hoặc để CustomRandomForestClassifier tự quyết định (mặc định là sqrt)
 }
-print(" Thực hiện Grid Search")
-# Thực hiện Grid Search
-grid_search = GridSearchCV(estimator=RandomForestClassifier(), param_grid=param_grid, cv=5, n_jobs=-1, verbose=2)
-grid_search.fit(x_train, y_train)
-print(" In ra bộ tham số tốt nhất")
-# In ra bộ tham số tốt nhất
-print("Best parameters found: ", grid_search.best_params_)
 
-# Sử dụng các tham số tốt nhất để huấn luyện lại mô hình
-print("Sử dụng các tham số tốt nhất để huấn luyện lại mô hình")
-best_model = RandomForestClassifier(**grid_search.best_params_)
-best_model.fit(x_train, y_train)
-y_pred = best_model.predict(x_test)
-print("HERE 1")
-# Tính toán độ chính xác
-accuracy = accuracy_score(y_test, y_pred)
-print("Accuracy with best parameters:", accuracy)
-print("HERE 2")
-# In ra báo cáo phân loại chi tiết
-print("Classification Report:")
-print(classification_report(y_test, y_pred))
+print("\nBắt đầu tìm kiếm tham số tốt nhất (thủ công)...")
 
-# Ma trận nhầm lẫn
-cm = confusion_matrix(y_test, y_pred)
+best_score = -1.0
+best_params = {}
+best_model_custom = None
 
-# Trực quan hóa ma trận nhầm lẫn
-plt.figure(figsize=(10, 8))
-sns.heatmap(cm, annot=True, cmap='Blues', fmt='d', xticklabels=best_model.classes_, yticklabels=best_model.classes_)
-plt.xlabel('Predicted labels')
-plt.ylabel('True labels')
-plt.title('Confusion Matrix')
-plt.show()
+# Tạo tất cả các tổ hợp tham số
+keys, values = zip(*param_grid.items())
+parameter_combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
-# Trực quan hóa báo cáo phân loại
-report = classification_report(y_test, y_pred, output_dict=True)
-precision = [report[label]['precision'] for label in best_model.classes_]
-recall = [report[label]['recall'] for label in best_model.classes_]
-f1_score = [report[label]['f1-score'] for label in best_model.classes_]
+print(f"Tổng số tổ hợp tham số cần thử: {len(parameter_combinations)}")
 
-plt.figure(figsize=(12, 6))
-plt.bar(best_model.classes_, precision, color='skyblue', label='Precision')
-plt.bar(best_model.classes_, recall, color='orange', label='Recall', alpha=0.7)
-plt.bar(best_model.classes_, f1_score, color='green', label='F1-score', alpha=0.5)
-plt.xlabel('Classes')
-plt.ylabel('Scores')
-plt.title('Precision, Recall, and F1-score by Class')
-plt.legend()
-plt.show()
+for i, params in enumerate(parameter_combinations):
+    print(f"\nĐang thử tổ hợp {i+1}/{len(parameter_combinations)}: {params}")
+    
+    # Khởi tạo model với tham số hiện tại
+    # Lưu ý: CustomRandomForestClassifier có n_features_subsample. Nếu bạn muốn điều chỉnh nó,
+    # hãy thêm vào param_grid và truyền vào đây.
+    # Hiện tại, nó sẽ dùng giá trị mặc định (sqrt).
+    current_model = CustomRandomForestClassifier(
+        n_estimators=params.get('n_estimators', 100),
+        max_depth=params.get('max_depth', 100),
+        min_samples_split=params.get('min_samples_split', 2)
+        # n_features_subsample=params.get('n_features_subsample', None) # Thêm nếu có trong grid
+    )
+    
+    # Huấn luyện model (sử dụng toàn bộ x_train_full cho lần này, không có cross-validation nội bộ)
+    current_model.fit(x_train_full, y_train_full)
+    
+    # Đánh giá trên tập x_test_final (tạm gọi là validation set)
+    y_pred_val = current_model.predict(x_test_final)
+    current_score = custom_accuracy_score(y_test_final, y_pred_val)
+    print(f"  Độ chính xác trên tập validation: {current_score:.4f}")
+    
+    if current_score > best_score:
+        best_score = current_score
+        best_params = params
+        best_model_custom = current_model # Lưu lại model tốt nhất
 
-# Lưu mô hình đã huấn luyện
-with open('modelV05.p', 'wb') as f:
-    pickle.dump({'model': best_model}, f)
+print(f"\nTìm kiếm hoàn tất!")
+print(f"Tham số tốt nhất tìm được: {best_params}")
+print(f"Độ chính xác tốt nhất trên tập validation: {best_score:.4f}")
+
+
+if best_model_custom:
+    print("\nĐánh giá model tốt nhất trên tập kiểm tra cuối cùng (dùng lại x_test_final):")
+    # y_pred_on_test_final = best_model_custom.predict(x_test_final) # Đã có từ lần lặp cuối
+    # score_on_test_final = custom_accuracy_score(y_test_final, y_pred_on_test_final)
+    # print(f"Độ chính xác của model tốt nhất trên tập kiểm tra: {score_on_test_final*100:.2f}%")
+    print(f"(Sử dụng lại kết quả từ validation ở trên là {best_score*100:.2f}%)")
+
+    print("\nBáo cáo phân loại cho model tốt nhất (phiên bản đơn giản hóa):")
+    y_pred_best_model = best_model_custom.predict(x_test_final)
+    print(custom_classification_report_simplified(y_test_final, y_pred_best_model))
+
+    # Lưu model tốt nhất
+    best_model_filename = 'custom_model_best_params.p'
+    with open(best_model_filename, 'wb') as f:
+        pickle.dump({'model': best_model_custom, 'params': best_params}, f)
+    print(f"Model tốt nhất đã được lưu vào '{best_model_filename}'")
+
+    # Ma trận nhầm lẫn cho model tốt nhất (tùy chọn)
+    if 'custom_confusion_matrix' in globals() and hasattr(best_model_custom, 'classes_'):
+        unique_labels_for_cm_best = best_model_custom.classes_ if best_model_custom.classes_ is not None else sorted(np.unique(np.concatenate((y_test_final, y_pred_best_model))))
+        cm_best, cm_labels_best = custom_confusion_matrix(y_test_final, y_pred_best_model, labels=unique_labels_for_cm_best)
+        if cm_best is not None:
+            plt.figure(figsize=(10, 8))
+            sns.heatmap(cm_best, annot=True, cmap='Blues', fmt='d',
+                        xticklabels=cm_labels_best, yticklabels=cm_labels_best)
+            plt.xlabel('Predicted labels (Best Model)')
+            plt.ylabel('True labels (Best Model)')
+            plt.title('Custom Confusion Matrix (Best Model)')
+            plt.show()
+else:
+    print("\nKhông tìm thấy model tốt nhất nào.")
