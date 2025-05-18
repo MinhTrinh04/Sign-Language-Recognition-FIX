@@ -19,39 +19,31 @@ mp_drawing_styles = mp.solutions.drawing_styles
 
 hands = mp_hand.Hands(static_image_mode=True, min_detection_confidence=0.3)
 
-# label_dict = {chr(65 + i - 1): chr(65 + i - 1) for i in range(1, 27)}
-# print(label_dict)
-
 # Tạo từ điển với các nhãn từ 0 đến 9 và từ A đến Z
 label_dict = {str(i): str(i) for i in range(10)}
 label_dict.update({chr(65 + i): chr(65 + i) for i in range(26)})
 print(label_dict)
 
-
 # Tạo cửa sổ Tkinter
 root = tk.Tk()
 root.title("Sign Language Recognition")
 
-# Khung để hiển thị video
-video_frame = Label(root)
-video_frame.pack(side=tk.LEFT)
+# Khung chính để chứa lịch sử và video
+main_frame = tk.Frame(root)
+main_frame.pack(fill=tk.BOTH, expand=True)
 
-# Nhãn để hiển thị ký tự dự đoán
-result_label = Label(root, text="", font=("Helvetica", 24))
-result_label.pack()
-
-# Khung để hiển thị lịch sử dự đoán
-history_frame = tk.Frame(root)
-history_frame.pack(side=tk.RIGHT, fill=tk.Y)
+# Khung lịch sử (bên trái)
+history_frame = tk.Frame(main_frame)
+history_frame.pack(side=tk.LEFT, fill=tk.Y)
 
 history_label = Label(history_frame, text="History:", font=("Helvetica", 18))
-history_label.grid(row=0, column=0, sticky="n")
+history_label.pack(side=tk.TOP, pady=5)
 
 # Thêm Text widget để hiển thị lịch sử
 history_text = Text(history_frame, height=20, width=30, wrap=tk.WORD)
-history_text.grid(row=1, column=0, sticky="n")
+history_text.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 scrollbar = Scrollbar(history_frame, orient=VERTICAL, command=history_text.yview)
-scrollbar.grid(row=1, column=1, sticky="ns")
+scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 history_text.config(yscrollcommand=scrollbar.set)
 
 # Nút xóa lịch sử
@@ -60,7 +52,19 @@ def clear_history():
     history.clear()
 
 clear_button = Button(history_frame, text="Clear History", command=clear_history)
-clear_button.grid(row=2, column=0, sticky="n")
+clear_button.pack(side=tk.TOP, pady=5)
+
+# Khung video (bên phải)
+video_frame_container = tk.Frame(main_frame)
+video_frame_container.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+# Nhãn để hiển thị ký tự dự đoán (trên video)
+result_label = Label(video_frame_container, text="", font=("Helvetica", 24))
+result_label.pack(side=tk.TOP, pady=5)
+
+# Khung để hiển thị video
+video_frame = Label(video_frame_container)
+video_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
 # Danh sách lưu trữ lịch sử các từ đã đoán
 history = []
